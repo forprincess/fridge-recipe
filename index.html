@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#059669">
+<link rel="manifest" href="manifest.json">
+<title>冰箱菜谱</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: { colors: { brand: '#059669' } } }
+  };
+</script>
+<style>
+  html, body { height: 100%; }
+  body { -webkit-tap-highlight-color: transparent; }
+  /* 底部 Tab 安全区 */
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  /* 内容区底部留白，避免被固定 Tab 遮挡 */
+  .page-scroll { padding-bottom: 6rem; }
+</style>
+</head>
+<body class="bg-stone-50 text-stone-800">
+
+<div class="mx-auto max-w-md min-h-screen flex flex-col bg-white shadow">
+  <!-- Header -->
+  <header class="sticky top-0 z-20 bg-brand text-white px-4 py-3 flex items-center justify-between">
+    <h1 class="text-lg font-bold">🧊 冰箱菜谱</h1>
+    <span id="todayLabel" class="text-sm opacity-90"></span>
+  </header>
+
+  <!-- ============ 冰箱 页 ============ -->
+  <main id="page-home" class="page-scroll flex-1 px-4 py-4 space-y-5">
+    <!-- AI 推荐区 -->
+    <section class="bg-brand/5 border border-brand/20 rounded-xl p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold flex items-center gap-1">🍳 今日推荐</h2>
+      </div>
+      <p id="excludeInfo" class="mt-1 text-xs text-stone-500 min-h-[1rem]"></p>
+      <button id="btnRecommend" class="mt-3 w-full bg-brand hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg active:scale-[0.98] transition">
+        推荐今日菜谱
+      </button>
+    </section>
+
+    <!-- 食材管理区 -->
+    <section>
+      <h2 class="font-semibold mb-2">🥦 我的食材</h2>
+      <form id="ingredientForm" class="flex gap-2">
+        <input id="inName" type="text" placeholder="食材名（如：鸡蛋）" autocomplete="off"
+          class="flex-1 min-w-0 border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand">
+        <input id="inAmount" type="text" placeholder="数量（如：4个）" autocomplete="off"
+          class="w-24 border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand">
+        <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 rounded-lg active:scale-[0.98] transition">添加</button>
+      </form>
+      <div id="ingredientEmpty" class="mt-3 text-center text-sm text-stone-400 py-6 border border-dashed border-stone-200 rounded-lg">暂无食材，先在上方添加吧</div>
+      <ul id="ingredientList" class="mt-3 space-y-2"></ul>
+    </section>
+
+    <!-- 推荐结果 -->
+    <section id="recommendSection" class="hidden">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-semibold">✨ 推荐结果</h2>
+        <button id="btnReroll" class="text-sm text-brand font-medium hidden">换一批</button>
+      </div>
+      <div id="recommendLoading" class="text-center text-sm text-stone-500 py-6 hidden">
+        <span class="inline-flex items-center gap-2">⏳ 正在结合食材思考今日菜谱…</span>
+      </div>
+      <div id="recommendError" class="hidden text-center text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg py-4">
+        <div id="recommendErrorMsg"></div>
+        <button id="btnRetry" class="mt-2 bg-red-600 text-white text-xs px-4 py-1.5 rounded-lg">重试</button>
+      </div>
+      <div id="dishesList" class="space-y-3"></div>
+    </section>
+
+    <!-- 采购清单 -->
+    <section id="shoppingSection" class="hidden">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-semibold">🛒 采购建议</h2>
+        <button id="btnCopyShopping" class="text-xs bg-stone-100 hover:bg-stone-200 border border-stone-300 px-3 py-1 rounded-lg">复制</button>
+      </div>
+      <div id="shoppingLoading" class="text-center text-sm text-stone-500 py-3 hidden">…</div>
+      <div id="shoppingList" class="bg-amber-50 border border-amber-200 rounded-xl p-4"></div>
+    </section>
+  </main>
+
+  <!-- ============ 历史 页 ============ -->
+  <main id="page-history" class="page-scroll flex-1 px-4 py-4 space-y-3 hidden">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold text-lg">🕘 历史记录</h2>
+      <button id="btnClearHistory" class="text-xs text-red-500 border border-red-200 rounded-lg px-3 py-1">清空</button>
+    </div>
+    <div id="historyEmpty" class="text-center text-sm text-stone-400 py-10">还没有做过的菜记录</div>
+    <div id="historyList" class="space-y-3"></div>
+  </main>
+
+  <!-- ============ 设置 页 ============ -->
+  <main id="page-settings" class="page-scroll flex-1 px-4 py-4 space-y-5 hidden">
+    <h2 class="font-semibold text-lg">👤 设置</h2>
+    <section id="cloudCard" class="border border-brand/20 bg-brand/5 rounded-xl p-4 space-y-3">
+      <h3 class="font-semibold text-sm">☁️ 数据共享（两人共用）</h3>
+      <p id="cloudStatus" class="text-xs text-stone-500"></p>
+      <div class="space-y-2">
+        <input id="setSupabaseUrl" type="text" placeholder="Supabase URL（Project URL）"
+          class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand">
+        <input id="setSupabaseAnon" type="text" placeholder="Supabase anon public key"
+          class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand">
+        <div class="grid grid-cols-2 gap-2">
+          <input id="setRoomCode" type="text" placeholder="房间码（例 FJKL-2026）" autocomplete="off"
+            class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand">
+          <input id="setRoomPwd" type="password" placeholder="口令" autocomplete="off"
+            class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand">
+        </div>
+        <div class="flex gap-2">
+          <button id="btnCreateRoom" class="flex-1 bg-brand text-white text-sm font-semibold py-2 rounded-lg">创建房间</button>
+          <button id="btnJoinRoom" class="flex-1 border border-brand text-brand text-sm font-semibold py-2 rounded-lg">加入房间</button>
+          <button id="btnLeaveRoom" class="px-3 border border-red-200 text-red-500 text-sm rounded-lg hidden">退出</button>
+        </div>
+        <label class="flex items-center gap-2 text-xs text-stone-500">
+          <input id="syncToggle" type="checkbox"> 启用云端同步（需先配置上面 URL/anon 并创建或加入房间）
+        </label>
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">大模型 API Key</label>
+        <div class="relative">
+          <input id="setApiKey" type="password" placeholder="sk-..."
+            class="w-full border border-stone-300 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-brand">
+          <button id="btnToggleKey" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 text-sm">👁</button>
+        </div>
+        <p class="mt-1 text-xs text-stone-400">仅保存在本机浏览器（localStorage），不会上传。</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium mb-1">模型</label>
+          <select id="setModel" class="w-full border border-stone-300 rounded-lg px-2 py-2 bg-white focus:ring-2 focus:ring-brand">
+            <option value="deepseek-chat">DeepSeek-Chat</option>
+            <option value="qwen-plus">通义千问 Qwen-Plus</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">接口地址</label>
+          <input id="setBaseUrl" type="text" placeholder="https://api.deepseek.com"
+            class="w-full border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand">
+        </div>
+      </div>
+      <div class="flex gap-3 pt-1">
+        <button id="btnSaveSettings" class="flex-1 bg-brand hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg active:scale-[0.98] transition">保存</button>
+        <button id="btnClearSettings" class="flex-1 border border-stone-300 text-stone-600 py-2.5 rounded-lg">清除</button>
+      </div>
+    </section>
+    <section class="text-xs text-stone-400 leading-relaxed">
+      <p>· 本应用为纯前端单页应用，数据仅存于当前设备。</p>
+      <p>· 推荐会排除最近 3 天内做过（选中记录过）的菜。</p>
+      <p>· 常见模型 API：DeepSeek / 通义千问，使用 OpenAI 兼容接口。</p>
+    </section>
+    <section class="text-xs text-stone-300">
+      <p>默认模型地址：deepseek https://api.deepseek.com · qwen https://dashscope.aliyuncs.com/compatible-mode/v1</p>
+    </section>
+  </main>
+
+  <!-- ============ 底部 Tab ============ -->
+  <nav class="sticky bottom-0 z-20 bg-white border-t border-stone-200 safe-bottom">
+    <div class="grid grid-cols-3">
+      <button data-page="home" class="tab-btn py-2 flex flex-col items-center gap-0.5 text-xs font-medium">
+        <span class="text-xl">🧊</span>冰箱
+      </button>
+      <button data-page="history" class="tab-btn py-2 flex flex-col items-center gap-0.5 text-xs font-medium">
+        <span class="text-xl">🕘</span>历史
+      </button>
+      <button data-page="settings" class="tab-btn py-2 flex flex-col items-center gap-0.5 text-xs font-medium">
+        <span class="text-xl">👤</span>我的
+      </button>
+    </div>
+  </nav>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 z-50 hidden bg-stone-800 text-white text-sm px-4 py-2 rounded-lg shadow"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 阶段1：存储封装 ================= */
+  const PREFIX = 'fridge:';
+  const KEYS = { ingredients: PREFIX+'ingredients', history: PREFIX+'history', settings: PREFIX+'settings' };
+
+  function readJSON(key, def) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : def;
+    } catch (e) { return def; }
+  }
+  function writeJSON(key, obj) {
+    try {
+      localStorage.setItem(key, JSON.stringify(obj));
+      return true;
+    } catch (e) { toast('存储失败：空间不足？'); return false; }
+  }
+  function uuid() {
+    try {
+      if (crypto.randomUUID) return crypto.randomUUID();
+    } catch (e) {}
+    return 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayStr() { return ymd(new Date()); }
+  function dayStrOffset(n) { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); }
+
+  /* ================= 数据访问 ================= */
+  function getIngredients()      { return readJSON(KEYS.ingredients, { version: 1, items: [] }).items || []; }
+  function saveIngredients(items) { const r = writeJSON(KEYS.ingredients, { version: 1, items: items }); if (r) notifyLocalChange(); return r; }
+  function getHistory()          { return readJSON(KEYS.history, { version: 1, records: [] }).records || []; }
+  function saveHistory(records)  { const r = writeJSON(KEYS.history, { version: 1, records: records }); if (r) notifyLocalChange(); return r; }
+  function getSettings()         { return readJSON(KEYS.settings, {}) ; }
+  function saveSettings(s)       { const r = writeJSON(KEYS.settings, s); if (r) notifyLocalChange(); return r; }
+
+  /* ================= 通用 UI ================= */
+  let toastTimer = null;
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.add('hidden'), 2200);
+  }
+  function $id(i) { return document.getElementById(i); }
+
+  /* ================= 云端共享同步引擎（Supabase） ================= */
+  let sb = null;
+  let roomId = null;
+  let cloudChannel = null;
+  let cloudEnabled = false;
+  let cloudPause = false;   // 远程回写时不触发本地→云端推送（防回环）
+  let pushTimer = null;
+
+  function getCloud()        { return readJSON(PREFIX + 'cloud', {}) || {}; }
+  function setCloud(c)       { writeJSON(PREFIX + 'cloud', c); }
+  function notifyLocalChange() { if (cloudEnabled && !cloudPause) debouncePush(); }
+  function debouncePush() { clearTimeout(pushTimer); pushTimer = setTimeout(pushLocal, 400); }
+
+  function mapCloudErr(msg) {
+    const m = String(msg || '');
+    if (m.includes('CODE_EXISTS')) return '房间码已存在，换一个或直接加入';
+    if (m.includes('ROOM_NOT_FOUND')) return '未找到该房间码';
+    if (m.includes('WRONG_PWD')) return '口令不正确';
+    if (m.includes('CODE_OR_PWD_EMPTY')) return '房间码和口令不能为空';
+    if (m.includes('NOT_MEMBER')) return '无权访问该房间';
+    if (m.includes('SUPACDN')) return 'supabase-js 加载失败（网络或 CDN 被拦截），请检查网络后重试';
+    if (m.includes('SHA')) return '当前环境不支持加密（需 https 或 localhost），请用 Live Server 或部署后访问';
+    return m.slice(0, 80);
+  }
+  function parseDoc(doc) {
+    if (typeof doc === 'string') { try { return JSON.parse(doc); } catch (e) { return {}; } }
+    return doc || {};
+  }
+  function makeClient() {
+    const c = getCloud();
+    if (!c.supabaseUrl || !c.supabaseAnon) throw new Error('CMISS');
+    return sqload().then(mod => mod.createClient(c.supabaseUrl, c.supabaseAnon));
+  }
+  let sbModPromise = null;
+  function sqload() {
+    if (!sbModPromise) {
+      // 使用 jsDelivr 的 ESM 构建；动态 import 避免 <script> 全局不可用/被墙静默失败
+      sbModPromise = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
+        .catch(() => { sbModPromise = null; throw new Error('SUPACDN'); });
+    }
+    return sbModPromise;
+  }
+  async function ensureAnon() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && session.user) return;
+    const { error } = await sb.auth.signInAnonymously();
+    if (error) throw error;
+  }
+  /* 口令 → SHA-256（hex），与数据库存取一致（不依赖 pgcrypto） */
+  async function sha256Hex(text) {
+    if (!window.crypto || !window.crypto.subtle) throw new Error('SHA');
+    const buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode('fridge:' + text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function buildDoc() {
+    return { ingredients: getIngredients(), history: getHistory(), settings: getSettings() };
+  }
+
+  /* 字段级合并：食材按 id 并集、历史按日期并集、设置后者覆盖 */
+  function mergeIngredients(a, b) {
+    const map = {};
+    (a || []).forEach(i => { if (i && i.id) map[i.id] = i; });
+    (b || []).forEach(i => { if (i && i.id && !map[i.id]) map[i.id] = i; });
+    return Object.values(map);
+  }
+  function mergeHistory(a, b) {
+    const map = {};
+    (a || []).forEach(r => { if (r && r.date) map[r.date] = r; });
+    (b || []).forEach(r => {
+      if (!r || !r.date) return;
+      if (!map[r.date]) { map[r.date] = r; return; }
+      const byName = {};
+      map[r.date].dishes.forEach(d => { if (d && d.name) byName[norm(d.name)] = d; });
+      r.dishes.forEach(d => { if (d && d.name && !byName[norm(d.name)]) byName[norm(d.name)] = d; });
+      map[r.date] = { date: r.date, dishes: Object.values(byName) };
+    });
+    return Object.values(map);
+  }
+  function mergeDocs(a, b) {
+    return {
+      ingredients: mergeIngredients(a.ingredients, b.ingredients),
+      history: mergeHistory(a.history, b.history),
+      settings: Object.assign({}, a.settings || {}, b.settings || {})
+    };
+  }
+
+  /* 本地快照缺了云里没有的记录时才需补推（避免同步回环） */
+  function needPushRemainder(remoteDoc) {
+    const local = buildDoc();
+    const lIds = new Set(local.ingredients.map(i => i.id));
+    const rIds = new Set((remoteDoc.ingredients || []).map(i => i.id));
+    const ld = new Set(local.history.map(r => r.date));
+    const rd = new Set((remoteDoc.history || []).map(r => r.date));
+    return lIds.size !== rIds.size || ld.size !== rd.size;
+  }
+
+  /* 把远端 doc 合并进本机并刷新界面 */
+  function applyRemote(doc) {
+    cloudPause = true;
+    try {
+      if (doc.ingredients) saveIngredients(doc.ingredients);
+      if (doc.history) saveHistory(doc.history);
+      if (doc.settings && Object.keys(doc.settings).length) saveSettings(doc.settings);
+    } finally { cloudPause = false; }
+    renderIngredients();
+    if (!$id('page-history').classList.contains('hidden')) renderHistory();
+    loadSettingsForm();
+    updateExcludeInfo();
+  }
+
+  async function pushLocal() {
+    if (!cloudEnabled || !sb || !roomId) return;
+    const doc = buildDoc();
+    const { error } = await sb.rpc('save_room_doc', { p_room_id: roomId, p_new_doc: doc });
+    if (error) console.warn('云端推送失败', error.message);
+  }
+
+  function subscribe() {
+    if (cloudChannel) sb.removeChannel(cloudChannel);
+    cloudChannel = sb.channel('room-' + roomId)
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'rooms', filter: 'id=eq.' + roomId },
+        async (payload) => {
+          if (!cloudEnabled || !payload.new) return;
+          const doc = parseDoc(payload.new.doc);
+          applyRemote(doc);
+          if (needPushRemainder(doc)) debouncePush();
+        })
+      .subscribe();
+  }
+
+  /* 建房 / 加入房间 */
+  async function createRoom() {
+    const code = $id('setRoomCode').value.trim();
+    const pwd = $id('setRoomPwd').value.trim();
+    if (!code || !pwd) { toast('请输入房间码和口令'); return; }
+    try {
+      const sha = await sha256Hex(pwd);
+      await prepareSupabase();
+      const { data, error } = await sb.rpc('create_room', { p_code: code, p_sha256: sha });
+      if (error) { toast(mapCloudErr(error.message)); return; }
+      await onRoomJoined(data, code);
+    } catch (e) { toast(e.message === 'CMISS' ? '请先填写 Supabase URL 与 anon key' : mapCloudErr(e.message)); }
+  }
+  async function joinRoom() {
+    const code = $id('setRoomCode').value.trim();
+    const pwd = $id('setRoomPwd').value.trim();
+    if (!code || !pwd) { toast('请输入房间码和口令'); return; }
+    try {
+      const sha = await sha256Hex(pwd);
+      await prepareSupabase();
+      const { data, error } = await sb.rpc('join_room', { p_code: code, p_sha256: sha });
+      if (error) { toast(mapCloudErr(error.message)); return; }
+      await onRoomJoined(data, code);
+    } catch (e) { toast(e.message === 'CMISS' ? '请先填写 Supabase URL 与 anon key' : mapCloudErr(e.message)); }
+  }
+  async function prepareSupabase() {
+    const cg = getCloud();
+    cg.supabaseUrl = $id('setSupabaseUrl').value.trim();
+    cg.supabaseAnon = $id('setSupabaseAnon').value.trim();
+    setCloud(cg);
+    sb = await makeClient();
+    await ensureAnon();
+    return sb;
+  }
+  async function onRoomJoined(room, code) {
+    roomId = room.id;
+    const cg = getCloud();
+    cg.roomId = roomId; cg.code = room.code || code; cg.enabled = true;
+    setCloud(cg);
+    // 拉远端快照，与本机合并（实现本机数据迁移）
+    const { data } = await sb.rpc('get_room_doc', { p_room_id: roomId });
+    const remoteDoc = parseDoc(data && data.doc);
+    const merged = mergeDocs(buildDoc(), remoteDoc);
+    cloudPause = true;
+    try { applyRemote(merged); } finally { cloudPause = false; }
+    cloudEnabled = true;
+    await pushLocal();          // 首次把合并结果（含本机旧数据）写上去
+    subscribe();
+    updateCloudUI();
+    toast('已接入共享房间 ' + (room.code || code));
+  }
+
+  /* 开关与断开 */
+  async function enableCloud() {
+    const cg = getCloud();
+    if (!cg.supabaseUrl || !cg.supabaseAnon) { $id('syncToggle').checked = false; toast('请先填写 Supabase URL 与 anon key'); return; }
+    if (!cg.roomId) { $id('syncToggle').checked = false; toast('请先创建或加入房间'); return; }
+    try {
+      sb = sb || await makeClient();
+      await ensureAnon();
+      roomId = cg.roomId;
+      cloudEnabled = true;
+      cg.enabled = true; setCloud(cg);
+      if (!cloudChannel) subscribe();
+      applyRemote(parseDoc(buildDoc()));
+      updateCloudUI();
+      toast('已开启云端同步');
+    } catch (e) { toast('连接失败：' + mapCloudErr(e.message)); }
+  }
+  function afterDisableCloud() {
+    if (cloudChannel) { sb.removeChannel(cloudChannel); cloudChannel = null; }
+    cloudEnabled = false;
+    updateCloudUI();
+  }
+
+  function updateCloudUI() {
+    const cg = getCloud();
+    $id('syncToggle').checked = !!cloudEnabled;
+    $id('btnLeaveRoom').classList.toggle('hidden', !cg.roomId);
+    $id('cloudStatus').textContent = cloudEnabled
+      ? '已连接共享房间：' + (cg.code || (cg.roomId || '').slice(0, 8)) + '（数据实时同步）'
+      : (cg.roomId ? '已配置房间，但同步未开启' : '未配置，当前数据仅存在本机');
+  }
+  function loadCloudForm() {
+    const c = getCloud();
+    $id('setSupabaseUrl').value = c.supabaseUrl || '';
+    $id('setSupabaseAnon').value = c.supabaseAnon || '';
+    $id('setRoomCode').value = c.code || '';
+    updateCloudUI();
+  }
+  async function initCloudIfConfigured() {
+    loadCloudForm();
+    const c = getCloud();
+    if (!c.supabaseUrl || !c.supabaseAnon || !c.roomId || !c.enabled) return;
+    try {
+      sb = await makeClient();
+      await ensureAnon();
+      roomId = c.roomId;
+      cloudEnabled = true;
+      const { data } = await sb.rpc('get_room_doc', { p_room_id: roomId });
+      applyRemote(parseDoc(data && data.doc));
+      subscribe();
+      updateCloudUI();
+    } catch (e) { cloudEnabled = false; console.warn('init cloud', e.message); }
+  }
+
+  /* ================= 阶段1：页面切换 ================= */
+  const PAGES = ['home', 'history', 'settings'];
+  function showPage(name) {
+    if (!PAGES.includes(name)) name = 'home';
+    PAGES.forEach(p => $id('page-' + p).classList.toggle('hidden', p !== name));
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      const on = b.dataset.page === name;
+      b.classList.toggle('text-brand', on);
+      b.classList.toggle('font-bold', on);
+      b.classList.toggle('text-stone-500', !on);
+    });
+    if (name === 'history') renderHistory();
+  }
+
+  /* ================= 阶段2：食材管理 ================= */
+  function renderIngredients() {
+    const items = getIngredients();
+    const list = $id('ingredientList');
+    $id('ingredientEmpty').classList.toggle('hidden', items.length > 0);
+    list.innerHTML = '';
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2';
+      li.innerHTML = '<span class="flex-1 min-w-0">' + esc(item.name) + '</span>' +
+        '<span class="text-stone-500 max-w-[8rem] text-right truncate">' + esc(item.amount) + '</span>';
+      const editBtn = btn('✎', 'border border-stone-300 rounded px-2 py-0.5 text-xs', () => editIngredient(item.id));
+      const delBtn = btn('✕', 'border text-red-500 rounded px-2 py-0.5 text-xs', () => deleteIngredient(item.id));
+      li.appendChild(editBtn); li.appendChild(delBtn);
+      list.appendChild(li);
+    });
+  }
+  function btn(label, cls, fn) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label; b.className = cls;
+    b.addEventListener('click', fn);
+    return b;
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function addIngredient(name, amount) {
+    const items = getIngredients();
+    const lower = name.trim().toLowerCase();
+    const dup = items.find(i => i.name.trim().toLowerCase() === lower);
+    if (dup) { toast('已存在同名食材「' + dup.name + '」'); return; }
+    items.push({ id: uuid(), name: name.trim(), amount: amount.trim(), createdAt: Date.now() });
+    saveIngredients(items);
+    renderIngredients();
+    toast('已添加');
+  }
+  function deleteIngredient(id) {
+    saveIngredients(getIngredients().filter(i => i.id !== id));
+    renderIngredients();
+  }
+  function editIngredient(id) {
+    const item = getIngredients().find(i => i.id === id);
+    if (!item) return;
+    const newName = prompt('食材名称', item.name);
+    if (newName == null) return;
+    const newAmount = prompt('数量', item.amount);
+    if (newAmount == null) return;
+    item.name = newName.trim() || item.name;
+    item.amount = newAmount.trim();
+    saveIngredients(getIngredients());
+    renderIngredients();
+    toast('已更新');
+  }
+
+  /* ================= 阶段4:历史与去重 ================= */
+  function getLastNDishNames(days) {
+    const range = [];
+    for (let i = 0; i < days; i++) range.push(dayStrOffset(i));
+    const names = new Set();
+    getHistory().forEach(r => {
+      if (range.includes(r.date)) r.dishes.forEach(d => names.add(norm(d.name)));
+    });
+    return names;
+  }
+  function norm(s) { return String(s || '').trim().toLowerCase(); }
+
+  /* 选中态：当前推荐 session 里被选中的 dish index */
+  const selectedIndex = new Set();
+  let currentDishes = [];
+
+  /* ================= 阶段3:AI 推荐 ================= */
+  const DEFAULT_BASE = { 'deepseek-chat': 'https://api.deepseek.com', 'qwen-plus': 'https://dashscope.aliyuncs.com/compatible-mode/v1' };
+
+  function buildPrompt(ingredients, excluded) {
+    const ingList = ingredients.map(i => '- ' + i.name + ' ' + i.amount).join('\n') || '（暂时冰箱里没有食材）';
+    const excludeList = excluded.size ? Array.from(excluded).join('、') : '无';
+    const system = [
+      '你是家庭厨房美食助手，根据用户当前冰箱的食材推荐今天可做的菜。',
+      '规则：',
+      '1. 推荐 2~3 道菜，优先使用冰箱里已有的食材，可补充极少量常见调味料（油盐酱醋糖）。',
+      '2. 尽量让【蛋白质、蔬菜、主食】三类更齐全；某类确实没有则标注为"缺"。',
+      '3. 每个"所需食材"必须标注在冰箱里是"已有"还是"缺"。',
+      '4. 只输出一个 JSON 对象，不要输出任何解释或 Markdown 代码块之外的文字。',
+      '输出格式（严格）:',
+      '{"dishes":[{"name":"菜名","ingredients":[{"name":"食材","status":"已有|缺"}],"steps":["步骤1","步骤2","步骤3"],"nutrition":{"protein":"齐全|缺","vegetable":"齐全|缺","staple":"齐全|缺"}}]}'
+    ].join('\n');
+    const user = '【冰箱现有食材】\n' + ingList + '\n\n【最近3天内做过的菜，请不要再推荐】\n' + excludeList;
+    return { system, user };
+  }
+
+  async function recommend() {
+    const settings = getSettings();
+    const ingredients = getIngredients();
+    const listEl = $id('dishesList'), errEl = $id('recommendError');
+    if (!ingredients.length) { toast('请先添加食材'); return; }
+    if (!settings.apiKey) { toast('请先在「我的」页配置 API Key'); showPage('settings'); return; }
+
+    // 显示 loading
+    $id('recommendSection').classList.remove('hidden');
+    $id('recommendLoading').classList.remove('hidden');
+    errEl.classList.add('hidden'); listEl.innerHTML = '';
+    $id('btnRecommend').disabled = true; $id('btnRecommend').textContent = '推荐中…';
+    $id('btnRetry').onclick = recommend;
+
+    const excluded = getLastNDishNames(3);
+    const { system, user } = buildPrompt(ingredients, excluded);
+    const baseUrl = (settings.baseUrl || DEFAULT_BASE[settings.model] || 'https://api.deepseek.com').replace(/\/+$/, '');
+    const model = settings.model || 'deepseek-chat';
+    const url = baseUrl + '/chat/completions';
+
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + settings.apiKey },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          temperature: 0.7
+        })
+      });
+      if (!resp.ok) {
+        const t = await resp.text().catch(() => '');
+        throw new Error('HTTP ' + resp.status + (t ? '：' + t.slice(0, 200) : ''));
+      }
+      const data = await resp.json();
+      const content = data.choices && data.choices[0] && data.choices[0].message.content;
+      const parsed = parseDishes(content);
+      applyDishes(parsed, excluded);
+    } catch (e) {
+      showError(e.message || '请求失败，请检查网络或 API Key');
+    } finally {
+      $id('recommendLoading').classList.add('hidden');
+      $id('btnRecommend').disabled = false; $id('btnRecommend').textContent = '推荐今日菜谱';
+    }
+  }
+  function parseDishes(content) {
+    if (!content) throw new Error('模型返回为空');
+    let text = content.trim();
+    // 去掉可能的外层 json 代码块
+    const m = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (m) text = m[1].trim();
+    const first = text.indexOf('{'), last = text.lastIndexOf('}');
+    if (first < 0 || last < first) throw new Error('无法解析模型返回');
+    const obj = JSON.parse(text.slice(first, last + 1));
+    const dishes = obj.dishes || [];
+    if (!Array.isArray(dishes) || !dishes.length) throw new Error('模型未返回菜品');
+    return dishes.map((d, i) => ({ id: 'd' + i, name: String(d.name || '菜' + (i + 1)), ingredients: (d.ingredients||[]).map(x => ({ name: String(x.name), status: String(x.status) })), steps: (d.steps||[]).map(String), nutrition: d.nutrition || {} }));
+  }
+  function showError(msg) {
+    $id('recommendErrorMsg').textContent = msg;
+    $id('recommendError').classList.remove('hidden');
+  }
+
+  /* 应用推荐结果：过滤掉排除名单 + 渲染 + 重算采购 */
+  function applyDishes(dishes, excluded) {
+    // 前端二次过滤：剔除 3 天内做过的（兜底）
+    const filtered = dishes.filter(d => !excluded.has(norm(d.name)));
+    if (!filtered.length) { showError('模型推荐的都是最近做过的菜，换个冰箱食材或重试'); return; }
+    currentDishes = filtered;
+    selectedIndex.clear();
+    renderDishes();
+    renderShopping();
+    reconcileHistory();
+  }
+
+  function renderDishes() {
+    const listEl = $id('dishesList');
+    listEl.innerHTML = '';
+    currentDishes.forEach((d, idx) => {
+      const card = document.createElement('article');
+      const on = selectedIndex.has(idx);
+      card.className = 'border rounded-xl p-3 transition ' + (on ? 'border-brand bg-brand/5' : 'border-stone-200 bg-white');
+      const ingHtml = d.ingredients.map(i =>
+        '<div class="flex items-center justify-between py-0.5">' +
+        '<span>' + esc(i.name) + '</span>' +
+        (i.status === '缺' ? '<span class="text-amber-600 text-xs">⚠️ 缺</span>' : '<span class="text-emerald-600 text-xs">✅ 已有</span>') +
+        '</div>').join('');
+      const nutHtml = '<div class="flex flex-wrap gap-1.5 mt-2">' +
+        ['protein', 'vegetable', 'staple'].map(k => {
+          const label = { protein: '蛋白质', vegetable: '蔬菜', staple: '主食' }[k];
+          const v = d.nutrition[k];
+          return '<span class="text-[11px] px-1.5 py-0.5 rounded ' +
+            (v === '缺' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700') + '">' +
+            label + ' ' + (v === '缺' ? '⚠️缺' : '✅齐全') + '</span>';
+        }).join('') + '</div>';
+      const stepsHtml = '<ol class="mt-2 text-sm text-stone-600 space-y-1">' + d.steps.map((s, i) => '<li><span class="text-brand font-medium">' + (i + 1) + '.</span> ' + esc(s) + '</li>').join('') + '</ol>';
+      card.innerHTML =
+        '<div class="flex items-start justify-between">' +
+        '<h3 class="font-bold text-base">' + esc(d.name) + '</h3>' +
+        '<button data-idx="' + idx + '" class="select-btn px-3 py-1 rounded-lg text-xs font-semibold border ' +
+          (on ? 'bg-emerald-600 text-white border-emerald-600' : 'border-stone-300 text-stone-600 bg-white') + '">' +
+          (on ? '已选中 ✓' : '选中') + '</button></div>' +
+        '<div class="mt-2 divide-y divide-stone-100 text-sm">' + ingHtml + '</div>' + nutHtml + stepsHtml;
+      listEl.appendChild(card);
+    });
+    listEl.querySelectorAll('.select-btn').forEach(b => b.addEventListener('click', () => toggleSelect(Number(b.dataset.idx))));
+  }
+
+  function toggleSelect(idx) {
+    if (selectedIndex.has(idx)) selectedIndex.delete(idx); else selectedIndex.add(idx);
+    renderDishes();       // 刷新选中态
+    renderShopping();     // 采购跟随选中
+    reconcileHistory();   // 历史与选中对齐
+  }
+
+  /* ================= 阶段4：采购建议 ================= */
+  function missingMap(onlySelected) {
+    const map = {};
+    const pool = onlySelected ? currentDishes.filter((_, i) => selectedIndex.has(i)) : currentDishes;
+    pool.forEach(d => d.ingredients.forEach(i => {
+      if (i.status === '缺') { const n = i.name.trim(); if (n) map[n] = (map[n] || 0) + 1; }
+    }));
+    return map;
+  }
+  function renderShopping() {
+    const sec = $id('shoppingSection');
+    if (!currentDishes.length) { sec.classList.add('hidden'); return; }
+    sec.classList.remove('hidden');
+    $id('shoppingLoading').classList.add('hidden');
+    const map = missingMap(selectedIndex.size > 0); // 选中聚焦，未选则看全部
+    const names = Object.keys(map);
+    const el = $id('shoppingList');
+    if (!names.length) { el.innerHTML = '<p class="text-sm text-emerald-700 font-medium">✓ 已选菜品食材基本齐全，无需额外购买</p>'; return; }
+    el.innerHTML = '<ul class="space-y-1">' + names.map(n =>
+      '<li class="flex items-center gap-2"><span class="text-amber-500">•</span>' + esc(n) + (map[n] > 1 ? '<span class="text-xs text-stone-400">×' + map[n] + '</span>' : '') + '</li>').join('') + '</ul>';
+  }
+  $id('btnCopyShopping').addEventListener('click', () => {
+    const names = Object.keys(missingMap(true)).length ? Object.keys(missingMap(true)) : Object.keys(missingMap(false));
+    if (!names.length) { toast('没有需要采购的食材'); return; }
+    navigator.clipboard.writeText('购物清单：' + names.join('、')).then(() => toast('已复制')).catch(() => toast('复制失败'));
+  });
+
+  /* ================= 阶段4：历史对齐（按选中写入/移除） ================= */
+  function reconcileHistory() {
+    const t = todayStr();
+    let records = getHistory();
+    const dayIdx = records.findIndex(r => r.date === t);
+    const dishes = currentDishes.filter((_, i) => selectedIndex.has(i)).map(d => ({
+      name: d.name,
+      ingredients: d.ingredients,
+      nutrition: d.nutrition
+    }));
+    if (!dishes.length) {
+      if (dayIdx >= 0) { records.splice(dayIdx, 1); saveHistory(records); }
+      return;
+    }
+    const day = { date: t, dishes: dishes };
+    if (dayIdx >= 0) records[dayIdx] = day; else records.push(day);
+    saveHistory(records);
+  }
+
+  function renderHistory() {
+    const records = getHistory().slice().sort((a, b) => b.date.localeCompare(a.date));
+    const listEl = $id('historyList');
+    $id('historyEmpty').classList.toggle('hidden', records.length > 0);
+    listEl.innerHTML = '';
+    records.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'border border-stone-200 rounded-xl p-3';
+      const ingSet = new Set();
+      r.dishes.forEach(d => d.ingredients.forEach(i => ingSet.add(i.name)));
+      card.innerHTML =
+        '<div class="flex items-center justify-between"><h3 class="font-semibold">' + esc(labelDate(r.date)) + '</h3></div>' +
+        '<ul class="mt-2 text-sm space-y-1">' + r.dishes.map(d => '<li>' + esc(d.name) + '</li>').join('') + '</ul>' +
+        (ingSet.size ? '<div class="mt-2 text-xs text-stone-400">使用食材：' + esc(Array.from(ingSet).join('、')) + '</div>' : '');
+      listEl.appendChild(card);
+    });
+  }
+  function labelDate(dateStr) {
+    if (dateStr === todayStr()) return '今天 · ' + dateStr;
+    if (dateStr === dayStrOffset(1)) return '昨天 · ' + dateStr;
+    if (dateStr === dayStrOffset(2)) return '前天 · ' + dateStr;
+    return dateStr;
+  }
+
+  /* ================= 阶段3：设置页 ================= */
+  function loadSettingsForm() {
+    const s = getSettings();
+    $id('setApiKey').value = s.apiKey || '';
+    $id('setModel').value = s.model || 'deepseek-chat';
+    $id('setBaseUrl').value = s.baseUrl || DEFAULT_BASE[s.model] || 'https://api.deepseek.com';
+  }
+  function saveSettingsFromForm() {
+    saveSettings({
+      apiKey: $id('setApiKey').value.trim(),
+      model: $id('setModel').value,
+      baseUrl: $id('setBaseUrl').value.trim()
+    });
+    toast('设置已保存');
+  }
+
+  /* ================= 通用：最近3天提示 ================= */
+  function updateExcludeInfo() {
+    const ex = getLastNDishNames(3);
+    $id('excludeInfo').textContent = ex.size ? '最近3天已做：' + Array.from(ex).join('、') + '（将不再推荐）' : '最近3天没做过菜，可自由推荐';
+  }
+
+  /* ================= 事件绑定 ================= */
+  function bindEvents() {
+    document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
+
+    $id('ingredientForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = $id('inName').value.trim();
+      const amount = $id('inAmount').value.trim();
+      if (!name) { toast('请输入食材名称'); return; }
+      addIngredient(name, amount);
+      $id('inName').value = ''; $id('inAmount').value = '';
+      $id('inName').focus();
+    });
+
+    $id('btnRecommend').addEventListener('click', recommend);
+
+    $id('btnSaveSettings').addEventListener('click', saveSettingsFromForm);
+    $id('btnClearSettings').addEventListener('click', () => {
+      if (!confirm('确定清除保存的设置吗？')) return;
+      localStorage.removeItem(KEYS.settings);
+      loadSettingsForm();
+      toast('已清除');
+    });
+    $id('btnClearHistory').addEventListener('click', () => {
+      if (!confirm('确定清空全部历史记录吗？')) return;
+      saveHistory([]);
+      renderHistory();
+      toast('已清空历史');
+    });
+    $id('btnToggleKey').addEventListener('click', () => {
+      const inp = $id('setApiKey');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
+    $id('setModel').addEventListener('change', () => {
+      $id('setBaseUrl').value = DEFAULT_BASE[$id('setModel').value] || '';
+    });
+
+    // 云端共享
+    $id('btnCreateRoom').addEventListener('click', createRoom);
+    $id('btnJoinRoom').addEventListener('click', joinRoom);
+    $id('btnLeaveRoom').addEventListener('click', () => {
+      if (!confirm('退出共享房间？本机数据保留，等待下次重新加入。')) return;
+      if (cloudChannel && sb) { sb.removeChannel(cloudChannel); cloudChannel = null; }
+      cloudEnabled = false;
+      const cg = getCloud();
+      delete cg.roomId; delete cg.enabled; delete cg.code;
+      setCloud(cg);
+      roomId = null;
+      updateCloudUI();
+      toast('已退出共享房间');
+    });
+    $id('syncToggle').addEventListener('change', () => {
+      if ($id('syncToggle').checked) enableCloud(); else afterDisableCloud();
+    });
+  }
+
+  /* ================= 初始化 ================= */
+  function init() {
+    bindEvents();
+    loadSettingsForm();
+    renderIngredients();
+    $id('todayLabel').textContent = todayStr();
+    updateExcludeInfo();
+    loadCloudForm();
+    showPage('home');
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+    initCloudIfConfigured();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
