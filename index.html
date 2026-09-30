@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -31,21 +31,9 @@
   </header>
 
   <!-- ============ 冰箱 页 ============ -->
-  <main id="page-home" class="page-scroll flex-1 px-4 py-4 space-y-5">
-    <!-- AI 推荐区 -->
-    <section class="bg-brand/5 border border-brand/20 rounded-xl p-4">
-      <div class="flex items-center justify-between">
-        <h2 class="font-semibold flex items-center gap-1">🍳 今日推荐</h2>
-      </div>
-      <p id="excludeInfo" class="mt-1 text-xs text-stone-500 min-h-[1rem]"></p>
-      <button id="btnRecommend" class="mt-3 w-full bg-brand hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg active:scale-[0.98] transition">
-        推荐今日菜谱
-      </button>
-    </section>
-
-    <!-- 食材管理区 -->
+  <main id="page-fridge" class="page-scroll flex-1 px-4 py-4 space-y-5">
+    <h2 class="font-semibold text-lg">🥦 我的食材</h2>
     <section>
-      <h2 class="font-semibold mb-2">🥦 我的食材</h2>
       <form id="ingredientForm" class="flex gap-2">
         <input id="inName" type="text" placeholder="食材名（如：鸡蛋）" autocomplete="off"
           class="flex-1 min-w-0 border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand">
@@ -56,12 +44,26 @@
       <div id="ingredientEmpty" class="mt-3 text-center text-sm text-stone-400 py-6 border border-dashed border-stone-200 rounded-lg">暂无食材，先在上方添加吧</div>
       <ul id="ingredientList" class="mt-3 space-y-2"></ul>
     </section>
+    <p class="text-xs text-stone-400">这里只展示冰箱里现有的食材。点下方「推荐」页生成菜谱。</p>
+  </main>
+
+  <!-- ============ 推荐 页 ============ -->
+  <main id="page-recommend" class="page-scroll flex-1 px-4 py-4 space-y-5 hidden">
+    <section class="bg-brand/5 border border-brand/20 rounded-xl p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold flex items-center gap-1">🍳 今日推荐</h2>
+        <button id="btnReroll" class="text-sm text-brand font-medium hidden">换一批</button>
+      </div>
+      <p id="excludeInfo" class="mt-1 text-xs text-stone-500 min-h-[1rem]"></p>
+      <button id="btnRecommend" class="mt-3 w-full bg-brand hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg active:scale-[0.98] transition">
+        推荐今日菜谱
+      </button>
+    </section>
 
     <!-- 推荐结果 -->
     <section id="recommendSection" class="hidden">
       <div class="flex items-center justify-between mb-2">
         <h2 class="font-semibold">✨ 推荐结果</h2>
-        <button id="btnReroll" class="text-sm text-brand font-medium hidden">换一批</button>
       </div>
       <div id="recommendLoading" class="text-center text-sm text-stone-500 py-6 hidden">
         <span class="inline-flex items-center gap-2">⏳ 正在结合食材思考今日菜谱…</span>
@@ -136,7 +138,7 @@
         <div>
           <label class="block text-sm font-medium mb-1">模型</label>
           <select id="setModel" class="w-full border border-stone-300 rounded-lg px-2 py-2 bg-white focus:ring-2 focus:ring-brand">
-            <option value="deepseek-chat">DeepSeek-Chat</option>
+            <option value="deepseek-flash">DeepSeek-Flash</option>
             <option value="qwen-plus">通义千问 Qwen-Plus</option>
           </select>
         </div>
@@ -152,20 +154,25 @@
       </div>
     </section>
     <section class="text-xs text-stone-400 leading-relaxed">
-      <p>· 本应用为纯前端单页应用，数据仅存于当前设备。</p>
       <p>· 推荐会排除最近 3 天内做过（选中记录过）的菜。</p>
-      <p>· 常见模型 API：DeepSeek / 通义千问，使用 OpenAI 兼容接口。</p>
+      <p>· 每次推荐 4~5 道：约 3 道用冰箱现有食材、约 2 道需新买食材。</p>
+      <p>· 页面未关闭时连续推荐会自动换一批，不重复。</p>
+      <p>· 未接入共享房间时，数据仅存当前设备；接入后与房间成员实时同步。</p>
+      <p>· 常见模型 API：DeepSeek-Flash / 通义千问，使用 OpenAI 兼容接口。</p>
     </section>
     <section class="text-xs text-stone-300">
-      <p>默认模型地址：deepseek https://api.deepseek.com · qwen https://dashscope.aliyuncs.com/compatible-mode/v1</p>
+      <p>模型地址：deepseek-flash → https://api.deepseek.com · qwen-plus → https://dashscope.aliyuncs.com/compatible-mode/v1</p>
     </section>
   </main>
 
   <!-- ============ 底部 Tab ============ -->
   <nav class="sticky bottom-0 z-20 bg-white border-t border-stone-200 safe-bottom">
-    <div class="grid grid-cols-3">
-      <button data-page="home" class="tab-btn py-2 flex flex-col items-center gap-0.5 text-xs font-medium">
+    <div class="grid grid-cols-4">
+      <button data-page="fridge" class="tab-btn py-2 flex flex-col items-center gap-0.5 text-xs font-medium">
         <span class="text-xl">🧊</span>冰箱
+      </button>
+      <button data-page="recommend" class="tab-btn py-2 flex flex-col items-center gap-0.5 text-xs font-medium">
+        <span class="text-xl">🍳</span>推荐
       </button>
       <button data-page="history" class="tab-btn py-2 flex flex-col items-center gap-0.5 text-xs font-medium">
         <span class="text-xl">🕘</span>历史
@@ -468,9 +475,9 @@
   }
 
   /* ================= 阶段1：页面切换 ================= */
-  const PAGES = ['home', 'history', 'settings'];
+  const PAGES = ['fridge', 'recommend', 'history', 'settings'];
   function showPage(name) {
-    if (!PAGES.includes(name)) name = 'home';
+    if (!PAGES.includes(name)) name = 'fridge';
     PAGES.forEach(p => $id('page-' + p).classList.toggle('hidden', p !== name));
     document.querySelectorAll('.tab-btn').forEach(b => {
       const on = b.dataset.page === name;
@@ -550,24 +557,34 @@
   /* 选中态：当前推荐 session 里被选中的 dish index */
   const selectedIndex = new Set();
   let currentDishes = [];
+  const sessionDishNames = new Set(); // 本次页面会话内已推荐过的菜名（不持久化，刷新即清空）
 
   /* ================= 阶段3:AI 推荐 ================= */
-  const DEFAULT_BASE = { 'deepseek-chat': 'https://api.deepseek.com', 'qwen-plus': 'https://dashscope.aliyuncs.com/compatible-mode/v1' };
+  const DEFAULT_BASE = { 'deepseek-flash': 'https://api.deepseek.com', 'qwen-plus': 'https://dashscope.aliyuncs.com/compatible-mode/v1' };
 
-  function buildPrompt(ingredients, excluded) {
+  function buildPrompt(ingredients, excluded, sessionNames) {
     const ingList = ingredients.map(i => '- ' + i.name + ' ' + i.amount).join('\n') || '（暂时冰箱里没有食材）';
     const excludeList = excluded.size ? Array.from(excluded).join('、') : '无';
+    const sessionList = sessionNames.size ? Array.from(sessionNames).join('、') : '无';
     const system = [
-      '你是家庭厨房美食助手，根据用户当前冰箱的食材推荐今天可做的菜。',
+      '你是家庭厨房美食助手，为两个人规划今天的一餐，既要营养均衡，也要尽快消耗冰箱里的食材。',
       '规则：',
-      '1. 推荐 2~3 道菜，优先使用冰箱里已有的食材，可补充极少量常见调味料（油盐酱醋糖）。',
-      '2. 尽量让【蛋白质、蔬菜、主食】三类更齐全；某类确实没有则标注为"缺"。',
-      '3. 每个"所需食材"必须标注在冰箱里是"已有"还是"缺"。',
-      '4. 只输出一个 JSON 对象，不要输出任何解释或 Markdown 代码块之外的文字。',
-      '输出格式（严格）:',
-      '{"dishes":[{"name":"菜名","ingredients":[{"name":"食材","status":"已有|缺"}],"steps":["步骤1","步骤2","步骤3"],"nutrition":{"protein":"齐全|缺","vegetable":"齐全|缺","staple":"齐全|缺"}}]}'
+      '1. 共推荐 4~5 道菜，其中：',
+      '   ① 3 道菜尽量主要用冰箱里已有的食材做成（优先消耗冰箱存货）；如果冰箱现存食材不够凑出 3 道，就减少现有食材的菜，把剩余配额改为推荐需要新买食材的菜。',
+      '   ② 2 道菜可以适当用到冰箱之外、需要去超市或菜场新买的新鲜食材（如鱼、猪肉、豆腐、时令蔬菜等），用来换换口味、凑齐营养。',
+      '2. 每道菜的"所需食材"必须逐条标注在冰箱里是"已有"还是"缺"。标注"缺"的食材会被加入采购清单，所以请写具体、可到店购买（例如直接写"活鲤鱼""五花肉"，不要笼统写"肉"）。',
+      '3. 营养均衡：这一餐的【优质蛋白质（肉蛋奶豆）】【蔬菜】【主食】三类要尽量齐全；每道菜在 nutrition 里如实标注这三类是"齐全"还是"缺"。',
+      '4. 每道菜必须给出一句"这道菜建议搭配的主食"(staple)，例如：白米饭、杂粮饭、馒头、面条、红薯玉米粥等。',
+      '5. 额外在顶层给出整餐推荐主食 staple，并附一句搭配理由。',
+      '6. 只输出一个 JSON 对象，不要输出任何解释文字，也不要包 Markdown 代码块。',
+      '输出格式（严格，不要改动字段名）:',
+      '{"staple":{"name":"主食名","note":"一句搭配理由"},"dishes":[{"name":"菜名","source":"现有|需购买","ingredients":[{"name":"食材","status":"已有|缺"}],"steps":["步骤1","步骤2","步骤3"],"staple":"这道菜建议搭配的主食","nutrition":{"protein":"齐全|缺","vegetable":"齐全|缺","staple":"齐全|缺"}}]}'
     ].join('\n');
-    const user = '【冰箱现有食材】\n' + ingList + '\n\n【最近3天内做过的菜，请不要再推荐】\n' + excludeList;
+    const user =
+      '【冰箱现有食材】（尽量先消耗它们做菜）\n' + ingList +
+      '\n\n【最近3天内做过的菜，请不要再推荐】\n' + excludeList +
+      '\n\n【本次页面会话里已经推荐过的菜，请换个新的、不要重复推荐】\n' + sessionList +
+      '\n\n请遵守：共 4~5 道菜，其中 3 道尽量用现有食材、2 道需要新买食材（缺的食材会进购物清单）；并给出整餐主食建议与营养均衡检查。';
     return { system, user };
   }
 
@@ -586,9 +603,9 @@
     $id('btnRetry').onclick = recommend;
 
     const excluded = getLastNDishNames(3);
-    const { system, user } = buildPrompt(ingredients, excluded);
+    const { system, user } = buildPrompt(ingredients, excluded, sessionDishNames);
     const baseUrl = (settings.baseUrl || DEFAULT_BASE[settings.model] || 'https://api.deepseek.com').replace(/\/+$/, '');
-    const model = settings.model || 'deepseek-chat';
+    const model = settings.model || 'deepseek-flash';
     const url = baseUrl + '/chat/completions';
 
     try {
@@ -607,8 +624,9 @@
       }
       const data = await resp.json();
       const content = data.choices && data.choices[0] && data.choices[0].message.content;
-      const parsed = parseDishes(content);
-      applyDishes(parsed, excluded);
+      const out = parseDishes(content);
+      lastMealStaple = out.mealStaple;
+      applyDishes(out.dishes, excluded);
     } catch (e) {
       showError(e.message || '请求失败，请检查网络或 API Key');
     } finally {
@@ -627,7 +645,18 @@
     const obj = JSON.parse(text.slice(first, last + 1));
     const dishes = obj.dishes || [];
     if (!Array.isArray(dishes) || !dishes.length) throw new Error('模型未返回菜品');
-    return dishes.map((d, i) => ({ id: 'd' + i, name: String(d.name || '菜' + (i + 1)), ingredients: (d.ingredients||[]).map(x => ({ name: String(x.name), status: String(x.status) })), steps: (d.steps||[]).map(String), nutrition: d.nutrition || {} }));
+    return {
+      mealStaple: obj.staple && obj.staple.name ? String(obj.staple.name) + (obj.staple.note ? '（' + obj.staple.note + '）' : '') : '',
+      dishes: dishes.map((d, i) => ({
+        id: 'd' + i,
+        name: String(d.name || '菜' + (i + 1)),
+        source: String(d.source || (d.ingredients && d.ingredients.some(x => x.status === '缺') ? '需购买' : '现有')),
+        ingredients: (d.ingredients || []).map(x => ({ name: String(x.name), status: String(x.status) })),
+        steps: (d.steps || []).map(String),
+        staple: String(d.staple || ''),
+        nutrition: d.nutrition || {}
+      }))
+    };
   }
   function showError(msg) {
     $id('recommendErrorMsg').textContent = msg;
@@ -639,6 +668,8 @@
     // 前端二次过滤：剔除 3 天内做过的（兜底）
     const filtered = dishes.filter(d => !excluded.has(norm(d.name)));
     if (!filtered.length) { showError('模型推荐的都是最近做过的菜，换个冰箱食材或重试'); return; }
+    filtered.forEach(d => sessionDishNames.add(norm(d.name))); // 记住本会话已推荐过的菜，便于下次换个新的
+    if (sessionDishNames.size) $id('btnReroll').classList.remove('hidden');
     currentDishes = filtered;
     selectedIndex.clear();
     renderDishes();
@@ -649,6 +680,12 @@
   function renderDishes() {
     const listEl = $id('dishesList');
     listEl.innerHTML = '';
+    if (lastMealStaple) {
+      const meal = document.createElement('div');
+      meal.className = 'mb-2 flex items-start gap-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2';
+      meal.innerHTML = '<span>🍚 整餐主食建议：</span><span>' + esc(lastMealStaple) + '</span>';
+      listEl.appendChild(meal);
+    }
     currentDishes.forEach((d, idx) => {
       const card = document.createElement('article');
       const on = selectedIndex.has(idx);
@@ -673,6 +710,10 @@
         '<button data-idx="' + idx + '" class="select-btn px-3 py-1 rounded-lg text-xs font-semibold border ' +
           (on ? 'bg-emerald-600 text-white border-emerald-600' : 'border-stone-300 text-stone-600 bg-white') + '">' +
           (on ? '已选中 ✓' : '选中') + '</button></div>' +
+        '<div class="mt-1 flex flex-wrap gap-1.5">' +
+        (d.source === '需购买' ? '<span class="text-[11px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">🛒 需购买新食材</span>' : '<span class="text-[11px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">🧊 现有食材可做</span>') +
+        (d.staple ? '<span class="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">🍚 配' + esc(d.staple) + '</span>' : '') +
+        '</div>' +
         '<div class="mt-2 divide-y divide-stone-100 text-sm">' + ingHtml + '</div>' + nutHtml + stepsHtml;
       listEl.appendChild(card);
     });
@@ -760,7 +801,7 @@
   function loadSettingsForm() {
     const s = getSettings();
     $id('setApiKey').value = s.apiKey || '';
-    $id('setModel').value = s.model || 'deepseek-chat';
+    $id('setModel').value = s.model || 'deepseek-flash';
     $id('setBaseUrl').value = s.baseUrl || DEFAULT_BASE[s.model] || 'https://api.deepseek.com';
   }
   function saveSettingsFromForm() {
@@ -793,6 +834,7 @@
     });
 
     $id('btnRecommend').addEventListener('click', recommend);
+    $id('btnReroll').addEventListener('click', recommend);
 
     $id('btnSaveSettings').addEventListener('click', saveSettingsFromForm);
     $id('btnClearSettings').addEventListener('click', () => {
@@ -842,7 +884,7 @@
     $id('todayLabel').textContent = todayStr();
     updateExcludeInfo();
     loadCloudForm();
-    showPage('home');
+    showPage('fridge');
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
