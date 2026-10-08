@@ -55,6 +55,8 @@
         <button id="btnReroll" class="text-sm text-brand font-medium hidden">换一批</button>
       </div>
       <p id="excludeInfo" class="mt-1 text-xs text-stone-500 min-h-[1rem]"></p>
+      <input id="inExtraPrompt" type="text" placeholder="补充要求（选填），如：少油少盐、不吃辣、份量加倍…" autocomplete="off"
+        class="mt-3 w-full text-sm border border-stone-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand">
       <button id="btnRecommend" class="mt-3 w-full bg-brand hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg active:scale-[0.98] transition">
         推荐今日菜谱
       </button>
@@ -155,7 +157,7 @@
     </section>
     <section class="text-xs text-stone-400 leading-relaxed">
       <p>· 推荐会排除最近 3 天内做过（选中记录过）的菜。</p>
-      <p>· 每次推荐 4~5 道：约 3 道用冰箱现有食材、约 2 道需新买食材。</p>
+      <p>· 每次推荐 6 道：约 3 道用冰箱现有食材、约 2 道需新买食材、1 道乱炖（一锅煮消耗现有食材）。</p>
       <p>· 页面未关闭时连续推荐会自动换一批，不重复。</p>
       <p>· 未接入共享房间时，数据仅存当前设备；接入后与房间成员实时同步。</p>
       <p>· 常见模型 API：DeepSeek-Flash / 通义千问，使用 OpenAI 兼容接口。</p>
@@ -563,29 +565,31 @@
   /* ================= 阶段3:AI 推荐 ================= */
   const DEFAULT_BASE = { 'deepseek-flash': 'https://api.deepseek.com', 'qwen-plus': 'https://dashscope.aliyuncs.com/compatible-mode/v1' };
 
-  function buildPrompt(ingredients, excluded, sessionNames) {
+  function buildPrompt(ingredients, excluded, sessionNames, extra) {
     const ingList = ingredients.map(i => '- ' + i.name + ' ' + i.amount).join('\n') || '（暂时冰箱里没有食材）';
     const excludeList = excluded.size ? Array.from(excluded).join('、') : '无';
     const sessionList = sessionNames.size ? Array.from(sessionNames).join('、') : '无';
     const system = [
       '你是家庭厨房美食助手，为两个人规划今天的一餐，既要营养均衡，也要尽快消耗冰箱里的食材。',
       '规则：',
-      '1. 共推荐 4~5 道菜，其中：',
+      '1. 共推荐 6 道菜，其中：',
       '   ① 3 道菜尽量主要用冰箱里已有的食材做成（优先消耗冰箱存货）；如果冰箱现存食材不够凑出 3 道，就减少现有食材的菜，把剩余配额改为推荐需要新买食材的菜。',
       '   ② 2 道菜可以适当用到冰箱之外、需要去超市或菜场新买的新鲜食材（如鱼、猪肉、豆腐、时令蔬菜等），用来换换口味、凑齐营养。',
+      '   ③ 第 6 道必须是一道"乱炖/大烩菜"：把冰箱里现有的食材一锅煮（肉、蔬菜、豆制品等随意搭配变着花样），现有食材不够的可以用可购买的新鲜食材补上，主打简单省事、快速消耗存货。',
       '2. 每道菜的"所需食材"必须逐条标注在冰箱里是"已有"还是"缺"。标注"缺"的食材会被加入采购清单，所以请写具体、可到店购买（例如直接写"活鲤鱼""五花肉"，不要笼统写"肉"）。',
       '3. 营养均衡：这一餐的【优质蛋白质（肉蛋奶豆）】【蔬菜】【主食】三类要尽量齐全；每道菜在 nutrition 里如实标注这三类是"齐全"还是"缺"。',
-      '4. 每道菜必须给出一句"这道菜建议搭配的主食"(staple)，例如：白米饭、杂粮饭、馒头、面条、红薯玉米粥等。',
-      '5. 额外在顶层给出整餐推荐主食 staple，并附一句搭配理由。',
+      '4. 仅在顶层给出整餐推荐主食 staple 及一句搭配理由，不要在每道菜里单独推荐主食。',
+      '5. 【不重复铁律】下列任何一道菜（包括第①②种"需购买"的新鲜食材菜，以及第③种的乱炖）都必须与"本次页面会话里已经推荐过的菜"完全不同，换做法、换食材、换菜名都不行。已推荐列表见下文。',
       '6. 只输出一个 JSON 对象，不要输出任何解释文字，也不要包 Markdown 代码块。',
       '输出格式（严格，不要改动字段名）:',
-      '{"staple":{"name":"主食名","note":"一句搭配理由"},"dishes":[{"name":"菜名","source":"现有|需购买","ingredients":[{"name":"食材","status":"已有|缺"}],"steps":["步骤1","步骤2","步骤3"],"staple":"这道菜建议搭配的主食","nutrition":{"protein":"齐全|缺","vegetable":"齐全|缺","staple":"齐全|缺"}}]}'
+      '{"staple":{"name":"主食名","note":"一句搭配理由"},"dishes":[{"name":"菜名","source":"现有|需购买","ingredients":[{"name":"食材","status":"已有|缺"}],"steps":["步骤1","步骤2","步骤3"],"nutrition":{"protein":"齐全|缺","vegetable":"齐全|缺","staple":"齐全|缺"}}]}'
     ].join('\n');
     const user =
       '【冰箱现有食材】（尽量先消耗它们做菜）\n' + ingList +
       '\n\n【最近3天内做过的菜，请不要再推荐】\n' + excludeList +
       '\n\n【本次页面会话里已经推荐过的菜，请换个新的、不要重复推荐】\n' + sessionList +
-      '\n\n请遵守：共 4~5 道菜，其中 3 道尽量用现有食材、2 道需要新买食材（缺的食材会进购物清单）；并给出整餐主食建议与营养均衡检查。';
+      '\n\n【用户的补充要求，请严格遵守】（无则忽略）\n' + (extra && extra.trim() ? extra : '无。') +
+      '\n\n请遵守：共 6 道菜，其中 3 道尽量用现有食材、2 道需要新买食材、1 道必须为"乱炖/大烩菜"（一锅煮，消耗现有食材）；所有菜都不能与已推荐过的重复；主食仅在整餐顶层给出，每道菜无需单独推荐主食；并给出整餐主食建议与营养均衡检查。';
     return { system, user };
   }
 
@@ -604,7 +608,8 @@
     $id('btnRetry').onclick = recommend;
 
     const excluded = getLastNDishNames(3);
-    const { system, user } = buildPrompt(ingredients, excluded, sessionDishNames);
+    const extra = $id('inExtraPrompt').value;
+    const { system, user } = buildPrompt(ingredients, excluded, sessionDishNames, extra);
     const baseUrl = (settings.baseUrl || DEFAULT_BASE[settings.model] || 'https://api.deepseek.com').replace(/\/+$/, '');
     const model = settings.model || 'deepseek-flash';
     const url = baseUrl + '/chat/completions';
@@ -654,7 +659,6 @@
         source: String(d.source || (d.ingredients && d.ingredients.some(x => x.status === '缺') ? '需购买' : '现有')),
         ingredients: (d.ingredients || []).map(x => ({ name: String(x.name), status: String(x.status) })),
         steps: (d.steps || []).map(String),
-        staple: String(d.staple || ''),
         nutrition: d.nutrition || {}
       }))
     };
@@ -716,7 +720,6 @@
           (on ? '已选中 ✓' : '选中') + '</button></div>' +
         '<div class="mt-1 flex flex-wrap gap-1.5">' +
         (d.source === '需购买' ? '<span class="text-[11px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">🛒 需购买新食材</span>' : '<span class="text-[11px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">🧊 现有食材可做</span>') +
-        (d.staple ? '<span class="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">🍚 配' + esc(d.staple) + '</span>' : '') +
         '</div>' +
         '<div class="mt-2 divide-y divide-stone-100 text-sm">' + ingHtml + '</div>' + nutHtml + stepsHtml;
       listEl.appendChild(card);
